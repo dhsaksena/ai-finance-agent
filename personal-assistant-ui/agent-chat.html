@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent</title>
+<style>
+  :root[data-theme="dark"] {
+    --bg: #0B0B0D;
+    --panel: #17171A;
+    --sidebar: #121214;
+    --border: #262626;
+    --text: #F0F0F0;
+    --muted: #9A9DA6;
+    --accent: #4F8CFF;
+    --bubble: #1C1C1F;
+    --bubble-user: #202127;
+  }
+  :root[data-theme="light"] {
+    --bg: #FFFFFF;
+    --panel: #F5F5F7;
+    --sidebar: #FAFAFB;
+    --border: #E3E4E8;
+    --text: #16171B;
+    --muted: #6B6F76;
+    --accent: #2F6FED;
+    --bubble: #F1F2F4;
+    --bubble-user: #E9EEFC;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    height: 100vh;
+    display: flex;
+  }
+
+  /* Sidebar */
+  #sidebar {
+    width: 260px;
+    flex-shrink: 0;
+    background: var(--sidebar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+  }
+  #sidebar-header {
+    padding: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  #new-chat-btn {
+    width: 100%;
+    padding: 9px 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 7px;
+    font-size: 13.5px;
+    cursor: pointer;
+    text-align: left;
+  }
+  #new-chat-btn:hover { border-color: var(--accent); }
+  #chat-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .chat-item {
+    padding: 9px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--muted);
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .chat-item:hover { background: var(--panel); }
+  .chat-item.active {
+    background: var(--panel);
+    color: var(--text);
+  }
+  #theme-toggle {
+    margin: 10px;
+    padding: 8px 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 7px;
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+
+  /* Main */
+  #main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    color: var(--muted);
+  }
+  #chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .row {
+    display: flex;
+    max-width: 720px;
+    width: 100%;
+    margin: 0 auto;
+  }
+  .row.user { justify-content: flex-end; }
+  .row.agent { justify-content: flex-start; }
+  .bubble {
+    max-width: 78%;
+    padding: 10px 14px;
+    border-radius: 10px;
+    line-height: 1.5;
+    font-size: 14.5px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    border: 1px solid var(--border);
+  }
+  .row.user .bubble { background: var(--bubble-user); }
+  .row.agent .bubble { background: var(--bubble); }
+  .bubble.pending { color: var(--muted); }
+  .bubble.error { border-color: #a24545; color: #d97a7a; }
+  #empty-state {
+    margin: auto;
+    color: var(--muted);
+    font-size: 14px;
+    text-align: center;
+  }
+
+  form {
+    border-top: 1px solid var(--border);
+    padding: 14px 16px;
+    display: flex;
+    justify-content: center;
+  }
+  .input-wrap {
+    max-width: 720px;
+    width: 100%;
+    display: flex;
+    gap: 10px;
+  }
+  input[type="text"] {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-size: 14.5px;
+    outline: none;
+  }
+  input[type="text"]:focus { border-color: var(--accent); }
+  button[type="submit"] {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 0 20px;
+    border-radius: 8px;
+    font-size: 14.5px;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <div id="sidebar-header">
+    <button id="new-chat-btn">+ New chat</button>
+  </div>
+  <div id="chat-list"></div>
+  <button id="theme-toggle">Switch to light</button>
+</div>
+
+<div id="main">
+  <header>Agent</header>
+  <div id="chat"></div>
+  <form id="chat-form">
+    <div class="input-wrap">
+      <input type="text" id="query" placeholder="Ask something…" autocomplete="off" autofocus>
+      <button type="submit" id="send-btn">Send</button>
+    </div>
+  </form>
+</div>
+
+<script>
+  // Point this at your backend endpoint. It should accept
+  // POST { query: string } and return { response: string }.
+  const ENDPOINT = "http://localhost:8000/chat";
+
+  const chatEl = document.getElementById("chat");
+  const chatListEl = document.getElementById("chat-list");
+  const form = document.getElementById("chat-form");
+  const input = document.getElementById("query");
+  const sendBtn = document.getElementById("send-btn");
+  const newChatBtn = document.getElementById("new-chat-btn");
+  const themeToggle = document.getElementById("theme-toggle");
+  const root = document.documentElement;
+
+  // In-memory chat sessions: [{ id, title, messages: [{role, text}], backendSessionId }]
+  let chats = [];
+  let currentChatId = null;
+
+  function createChat() {
+    const chat = { id: Date.now(), title: "New chat", messages: [], backendSessionId: null };
+    chats.unshift(chat);
+    currentChatId = chat.id;
+    renderChatList();
+    renderMessages();
+  }
+
+  function getCurrentChat() {
+    return chats.find(c => c.id === currentChatId);
+  }
+
+  function renderChatList() {
+    chatListEl.innerHTML = "";
+    chats.forEach(chat => {
+      const item = document.createElement("div");
+      item.className = "chat-item" + (chat.id === currentChatId ? " active" : "");
+      item.textContent = chat.title;
+      item.addEventListener("click", () => {
+        currentChatId = chat.id;
+        renderChatList();
+        renderMessages();
+      });
+      chatListEl.appendChild(item);
+    });
+  }
+
+  function renderMessages() {
+    chatEl.innerHTML = "";
+    const chat = getCurrentChat();
+    if (!chat || chat.messages.length === 0) {
+      const empty = document.createElement("div");
+      empty.id = "empty-state";
+      empty.textContent = "Ask something to start.";
+      chatEl.appendChild(empty);
+      return;
+    }
+    chat.messages.forEach(m => addBubbleEl(m.text, m.role, m.extraClass));
+  }
+
+  function addBubbleEl(text, role, extraClass) {
+    const row = document.createElement("div");
+    row.className = "row " + role;
+    const bubble = document.createElement("div");
+    bubble.className = "bubble" + (extraClass ? " " + extraClass : "");
+    bubble.textContent = text;
+    row.appendChild(bubble);
+    chatEl.appendChild(row);
+    chatEl.scrollTop = chatEl.scrollHeight;
+    return bubble;
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const query = input.value.trim();
+    if (!query) return;
+
+    let chat = getCurrentChat();
+    if (!chat) {
+      createChat();
+      chat = getCurrentChat();
+    }
+    if (chat.messages.length === 0) {
+      chat.title = query.length > 30 ? query.slice(0, 30) + "…" : query;
+      renderChatList();
+    }
+
+    document.getElementById("empty-state")?.remove();
+    chat.messages.push({ role: "user", text: query });
+    addBubbleEl(query, "user");
+
+    input.value = "";
+    input.disabled = true;
+    sendBtn.disabled = true;
+
+    const pendingMsg = { role: "agent", text: "Thinking…", extraClass: "pending" };
+    chat.messages.push(pendingMsg);
+    const pendingEl = addBubbleEl("Thinking…", "agent", "pending");
+
+    try {
+      const payload = { query };
+      if (chat.backendSessionId) {
+        payload.session_id = chat.backendSessionId;
+      }
+
+      const res = await fetch(ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) throw new Error("Server returned " + res.status);
+
+      const data = await res.json();
+      const answer = data.response ?? "(empty response)";
+
+      // Store the backend session ID for maintaining context
+      if (data.session_id) {
+        chat.backendSessionId = data.session_id;
+      }
+
+      pendingEl.textContent = answer;
+      pendingEl.classList.remove("pending");
+      pendingMsg.text = answer;
+      pendingMsg.extraClass = "";
+    } catch (err) {
+      const msg = "Error: " + err.message;
+      pendingEl.textContent = msg;
+      pendingEl.classList.remove("pending");
+      pendingEl.classList.add("error");
+      pendingMsg.text = msg;
+      pendingMsg.extraClass = "error";
+    } finally {
+      input.disabled = false;
+      sendBtn.disabled = false;
+      input.focus();
+    }
+  });
+
+  newChatBtn.addEventListener("click", createChat);
+
+  themeToggle.addEventListener("click", () => {
+    const isDark = root.getAttribute("data-theme") === "dark";
+    root.setAttribute("data-theme", isDark ? "light" : "dark");
+    themeToggle.textContent = isDark ? "Switch to dark" : "Switch to light";
+  });
+
+  createChat();
+</script>
+
+</body>
+</html>

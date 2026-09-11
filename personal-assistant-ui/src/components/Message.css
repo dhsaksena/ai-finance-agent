@@ -1,0 +1,43 @@
+.message-row {
+  display: flex;
+  max-width: 720px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.message-row.user {
+  justify-content: flex-end;
+}
+
+.message-row.agent {
+  justify-content: flex-start;
+}
+
+.bubble {
+  max-width: 78%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  line-height: 1.5;
+  font-size: 14.5px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  border: 1px solid var(--border);
+}
+
+.message-row.user .bubble {
+  background: var(--bubble-user);
+}
+
+.message-row.agent .bubble {
+  background: var(--bubble);
+}
+
+.bubble.pending {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.bubble.error {
+  border-color: #a24545;
+  color: #d97a7a;
+}

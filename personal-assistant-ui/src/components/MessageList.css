@@ -1,0 +1,16 @@
+.message-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--bg);
+}
+
+.empty-state {
+  margin: auto;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}

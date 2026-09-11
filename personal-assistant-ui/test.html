@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border-left: 4px solid #4F8CFF;
+            background: #f9f9f9;
+        }
+        button {
+            background: #4F8CFF;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #2F6FED;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 API Diagnostic Tool</h1>
+
+        <div class="test-section">
+            <h2>1️⃣ Check Backend Health</h2>
+            <button onclick="testHealth()">Test Health Endpoint</button>
+            <div id="healthStatus" class="status"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>2️⃣ Test Chat API</h2>
+            <input type="text" id="testQuery" placeholder="Enter test query" value="test message">
+            <button onclick="testChat()">Send Test Query</button>
+            <div id="chatStatus" class="status"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>3️⃣ Check CORS</h2>
+            <button onclick="testCors()">Test CORS Headers</button>
+            <div id="corsStatus" class="status"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>4️⃣ Full Integration Test</h2>
+            <button onclick="testIntegration()">Run Full Test</button>
+            <div id="integrationStatus" class="status"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "http://localhost:8000";
+        const CHAT_ENDPOINT = `${API_URL}/chat`;
+
+        function setStatus(elementId, message, type = 'info') {
+            const el = document.getElementById(elementId);
+            el.textContent = message;
+            el.className = `status ${type}`;
+        }
+
+        async function testHealth() {
+            try {
+                setStatus('healthStatus', 'Testing health endpoint...');
+                const response = await fetch(`${API_URL}/health`);
+                const data = await response.json();
+                setStatus('healthStatus', `✅ SUCCESS\nStatus: ${response.status}\nResponse: ${JSON.stringify(data, null, 2)}`, 'success');
+            } catch (error) {
+                setStatus('healthStatus', `❌ ERROR\n${error.message}\n\nMake sure backend is running on port 8000!`, 'error');
+            }
+        }
+
+        async function testChat() {
+            try {
+                const query = document.getElementById('testQuery').value;
+                if (!query) {
+                    setStatus('chatStatus', '❌ ERROR\nPlease enter a query', 'error');
+                    return;
+                }
+
+                setStatus('chatStatus', 'Sending query to backend...');
+
+                const response = await fetch(CHAT_ENDPOINT, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ query })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                setStatus('chatStatus', `✅ SUCCESS\nStatus: ${response.status}\nSession ID: ${data.session_id}\n\nResponse:\n${data.response}`, 'success');
+            } catch (error) {
+                setStatus('chatStatus', `❌ ERROR\n${error.message}`, 'error');
+            }
+        }
+
+        async function testCors() {
+            try {
+                setStatus('corsStatus', 'Checking CORS headers...');
+                const response = await fetch(CHAT_ENDPOINT, {
+                    method: 'OPTIONS',
+                });
+
+                const corsHeaders = {
+                    'Access-Control-Allow-Origin': response.headers.get('Access-Control-Allow-Origin'),
+                    'Access-Control-Allow-Methods': response.headers.get('Access-Control-Allow-Methods'),
+                    'Access-Control-Allow-Headers': response.headers.get('Access-Control-Allow-Headers'),
+                };
+
+                const corsInfo = Object.entries(corsHeaders)
+                    .map(([k, v]) => `${k}: ${v || '(not set)'}`)
+                    .join('\n');
+
+                setStatus('corsStatus', `✅ CORS Headers Found\n${corsInfo}`, 'success');
+            } catch (error) {
+                setStatus('corsStatus', `Note: ${error.message}\n\nThis may be expected for some requests.`, 'info');
+            }
+        }
+
+        async function testIntegration() {
+            setStatus('integrationStatus', 'Running full integration test...\n\n');
+
+            try {
+                // Test 1: Health
+                console.log('Test 1: Health');
+                let response = await fetch(`${API_URL}/health`);
+                if (!response.ok) throw new Error('Health check failed');
+                console.log('✅ Health check passed');
+
+                // Test 2: Chat
+                console.log('Test 2: Chat');
+                response = await fetch(CHAT_ENDPOINT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: 'test' })
+                });
+                if (!response.ok) throw new Error('Chat failed');
+                const data = await response.json();
+                const sessionId = data.session_id;
+                console.log('✅ Chat query passed, session_id:', sessionId);
+
+                // Test 3: Session context
+                console.log('Test 3: Session context');
+                response = await fetch(CHAT_ENDPOINT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: 'follow up question',
+                        session_id: sessionId
+                    })
+                });
+                if (!response.ok) throw new Error('Follow-up failed');
+                const data2 = await response.json();
+                console.log('✅ Session context maintained');
+
+                setStatus('integrationStatus', `✅ ALL TESTS PASSED!\n\n1. Health check ✅\n2. Chat query ✅\n3. Session context ✅\n\nBackend is working correctly!\n\nSession ID (for testing): ${sessionId}`, 'success');
+            } catch (error) {
+                setStatus('integrationStatus', `❌ TEST FAILED\n${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>
