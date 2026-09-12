@@ -37,7 +37,34 @@
   font-style: italic;
 }
 
+.bubble.streaming {
+  position: relative;
+}
+
+.streaming-cursor {
+  animation: blink 1s infinite;
+  margin-left: 4px;
+}
+
+@keyframes blink {
+  0%, 49% {
+    opacity: 1;
+  }
+  50%, 100% {
+    opacity: 0;
+  }
+}
+
 .bubble.error {
   border-color: #a24545;
   color: #d97a7a;
+}
+
+.tools-used {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
 }

@@ -5,10 +5,12 @@ A modern React-based chat interface for interacting with a Finance Agent. Built 
 ## Features
 
 - 💬 Real-time chat interface with message history
+- ⚡ Streaming support for real-time text generation with Server-Sent Events (SSE)
 - 🎨 Light/Dark theme support with persistent preference
 - 📱 Responsive design
-- ⚡ Fast development with Vite
+- ⚙️ Toggleable streaming mode for flexible API interaction
 - 🔌 Configurable API endpoint for Finance Agent backend
+- 🛠️ Tool usage tracking and display
 
 ## Getting Started
 
@@ -49,13 +51,21 @@ npm run preview
 
 ### API Endpoint
 
-The Finance Agent API endpoint can be configured via environment variable:
+The Finance Agent API base endpoint can be configured via environment variable:
 
 ```env
-VITE_API_ENDPOINT=http://localhost:8000/chat
+VITE_API_ENDPOINT=http://localhost:8000
 ```
 
-If not provided, defaults to `http://localhost:8000/chat`.
+If not provided, defaults to `http://localhost:8000`.
+
+The app uses two endpoints:
+- **Non-streaming**: `{VITE_API_ENDPOINT}/chat` - Returns complete response
+- **Streaming**: `{VITE_API_ENDPOINT}/chat/stream` - Returns Server-Sent Events stream
+
+### Streaming Mode
+
+By default, the UI uses **streaming mode** for real-time text generation. You can toggle between streaming and non-streaming modes using the button in the sidebar (⚡ Streaming / ⏸ Non-streaming). The preference is automatically saved in browser storage.
 
 ### Running with the Finance Agent Backend
 
@@ -77,8 +87,9 @@ If not provided, defaults to `http://localhost:8000/chat`.
 
 ### Backend API Contract
 
-The backend should accept POST requests to `/chat` with the following format:
+#### Non-Streaming Endpoint (`/chat`)
 
+POST request format:
 ```json
 {
   "query": "user question here",
@@ -86,13 +97,31 @@ The backend should accept POST requests to `/chat` with the following format:
 }
 ```
 
-And return:
-
+Response format:
 ```json
 {
   "response": "agent response here",
   "session_id": "uuid-for-maintaining-context-across-messages"
 }
+```
+
+#### Streaming Endpoint (`/chat/stream`)
+
+POST request format (same as above):
+```json
+{
+  "query": "user question here",
+  "session_id": "optional-uuid-for-maintaining-context"
+}
+```
+
+Response format: Server-Sent Events (SSE) stream with events:
+```
+data: {"type": "text", "content": "text chunk..."}\n\n
+data: {"type": "tool_call", "tool_name": "function_name", "tool_use_id": "id"}\n\n
+data: {"type": "tool_results_submitted"}\n\n
+data: {"type": "end", "stop_reason": "end_turn"}\n\n
+data: {"type": "error", "message": "error message"}\n\n
 ```
 
 The `session_id` is automatically managed by the UI to maintain conversation history for each chat session.

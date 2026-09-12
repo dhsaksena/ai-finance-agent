@@ -115,5 +115,101 @@ def main():
         print(f"\nAdvisor: {answer}\n")
 
 
+async def ask_advisor_stream(history, context):
+    """Stream the agent's response, handling tool calls internally."""
+    while True:
+        try:
+            with client.messages.stream(
+                model="claude-sonnet-5",
+                max_tokens=2000,
+                system=(
+                    "You are a stock analyst. Your ONLY job right now is to give "
+                    "a buy, hold, or sell judgment on a specific stock, based on "
+                    "its own financial statistics — valuation, profitability, "
+                    "growth, and price trend. Do NOT reason about how it fits "
+                    "the user's overall portfolio or diversification; that is "
+                    "out of scope for now.\n\n"
+                    "Never guess a stock ticker — always call search_ticker "
+                    "first to confirm it, and if it isn't found, ask the user "
+                    "for it directly. Then call get_stock_fundamentals to get "
+                    "real numbers.\n\n"
+                    "If the fundamentals alone leave a real gap in your "
+                    "confidence (a distorted ratio, missing balance sheet "
+                    "fields, unclear cause for a number), call "
+                    "get_company_research next to check for saved human notes "
+                    "on this ticker BEFORE asking the user. Only ask the user "
+                    "directly if get_company_research has nothing relevant "
+                    "either.\n\n"
+                    f"{context}"
+                ),
+                messages=history,
+                tools=TOOLS,
+            ) as stream:
+                response_content = []
+                for event in stream:
+                    if event.type == "content_block_start":
+                        if hasattr(event.content_block, "type"):
+                            if event.content_block.type == "text":
+                                yield {"type": "start", "content_type": "text"}
+                            elif event.content_block.type == "tool_use":
+                                yield {"type": "tool_start", "tool_name": event.content_block.name}
+
+                    elif event.type == "content_block_delta":
+                        if hasattr(event.delta, "text"):
+                            yield {"type": "text", "content": event.delta.text}
+
+                    elif event.type == "content_block_stop":
+                        response_content.append(event.content_block)
+
+                    elif event.type == "message_stop":
+                        response = event.message
+                        history.append({"role": "assistant", "content": response.content})
+
+                        if response.stop_reason != "tool_use":
+                            yield {"type": "end", "stop_reason": response.stop_reason}
+                            return
+                        break
+
+                tool_results = []
+                for block in response.content:
+                    if block.type == "tool_use":
+                        logger.info(
+                            "Tool call: name=%s, tool_use_id=%s, input=%s",
+                            block.name,
+                            block.id,
+                            block.input,
+                        )
+                        yield {"type": "tool_call", "tool_name": block.name, "tool_use_id": block.id}
+
+                        try:
+                            if block.name == "search_ticker":
+                                result = search_ticker(**block.input)
+                            elif block.name == "get_stock_fundamentals":
+                                result = get_stock_fundamentals(**block.input)
+                            elif block.name == "get_company_research":
+                                result = get_company_research(**block.input)
+                            else:
+                                result = {"error": f"Unknown tool: {block.name}"}
+                        except Exception as e:
+                            logger.error(f"Tool execution failed for {block.name}: {e}")
+                            result = {"error": f"Tool failed: {str(e)}"}
+
+                        tool_results.append(
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": str(result),
+                            }
+                        )
+
+                history.append({"role": "user", "content": tool_results})
+                yield {"type": "tool_results_submitted"}
+
+        except Exception as e:
+            logger.error(f"Streaming failed: {e}")
+            yield {"type": "error", "message": str(e)}
+            return
+
+
 if __name__ == "__main__":
     main()

@@ -3,7 +3,9 @@ import Sidebar from './components/Sidebar'
 import ChatArea from './components/ChatArea'
 import './App.css'
 
-const ENDPOINT = import.meta.env.VITE_API_ENDPOINT || 'http://localhost:8000/chat'
+const API_BASE = import.meta.env.VITE_API_ENDPOINT || 'http://localhost:8000'
+const ENDPOINT = `${API_BASE}/chat`
+const STREAM_ENDPOINT = `${API_BASE}/chat/stream`
 
 export default function App() {
   const [theme, setTheme] = useState(() => {
@@ -11,6 +13,13 @@ export default function App() {
       return localStorage.getItem('theme') || 'dark'
     }
     return 'dark'
+  })
+
+  const [useStreaming, setUseStreaming] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('useStreaming') !== 'false'
+    }
+    return true
   })
 
   const [chats, setChats] = useState([])
@@ -21,8 +30,16 @@ export default function App() {
     localStorage.setItem('theme', theme)
   }, [theme])
 
+  useEffect(() => {
+    localStorage.setItem('useStreaming', useStreaming)
+  }, [useStreaming])
+
   const toggleTheme = () => {
     setTheme(t => t === 'dark' ? 'light' : 'dark')
+  }
+
+  const toggleStreaming = () => {
+    setUseStreaming(t => !t)
   }
 
   const createChat = () => {
@@ -89,10 +106,13 @@ export default function App() {
         onSelectChat={selectChat}
         theme={theme}
         onToggleTheme={toggleTheme}
+        useStreaming={useStreaming}
+        onToggleStreaming={toggleStreaming}
       />
       <ChatArea
         currentChat={getCurrentChat()}
-        endpoint={ENDPOINT}
+        endpoint={useStreaming ? STREAM_ENDPOINT : ENDPOINT}
+        useStreaming={useStreaming}
         onAddMessage={addMessage}
         onUpdateMessage={updateMessage}
         onUpdateChatTitle={updateChatTitle}

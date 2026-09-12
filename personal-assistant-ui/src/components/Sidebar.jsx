@@ -6,7 +6,9 @@ export default function Sidebar({
   onNewChat,
   onSelectChat,
   theme,
-  onToggleTheme
+  onToggleTheme,
+  useStreaming,
+  onToggleStreaming
 }) {
   return (
     <div className="sidebar">
@@ -27,9 +29,18 @@ export default function Sidebar({
           </div>
         ))}
       </div>
-      <button className="theme-toggle" onClick={onToggleTheme}>
-        Switch to {theme === 'dark' ? 'light' : 'dark'}
-      </button>
+      <div className="sidebar-footer">
+        <button
+          className="streaming-toggle"
+          onClick={onToggleStreaming}
+          title={useStreaming ? 'Streaming enabled' : 'Streaming disabled'}
+        >
+          {useStreaming ? '⚡ Streaming' : '⏸ Non-streaming'}
+        </button>
+        <button className="theme-toggle" onClick={onToggleTheme}>
+          {theme === 'dark' ? '☀️' : '🌙'}
+        </button>
+      </div>
     </div>
   )
 }

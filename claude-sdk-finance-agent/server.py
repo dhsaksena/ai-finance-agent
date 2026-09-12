@@ -1,13 +1,15 @@
 import logging
 import os
+import json
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from cli import ask_advisor
+from cli import ask_advisor, ask_advisor_stream
 from ingest import load_notes
 from cli import build_context
 
@@ -97,13 +99,57 @@ async def chat(request: ChatRequest) -> ChatResponse:
             response=response_text,
             session_id=session_id
         )
-
     except Exception as e:
-        logger.error(f"Error processing chat request: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to process request: {str(e)}"
-        )
+        logger.exception(f"Chat endpoint error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/chat/stream")
+async def chatStream(request: ChatRequest) -> StreamingResponse:
+    session_id = request.session_id or str(uuid4())
+
+    if session_id not in sessions:
+        # Initialize new session with fresh history and context
+        notes = load_notes()
+        context = build_context(notes)
+        sessions[session_id] = {
+            "history": [],
+            "context": context
+        }
+
+    session = sessions[session_id]
+
+    session["history"].append({
+        "role": "user",
+        "content": request.query
+    })
+
+    async def event_generator():
+        try:
+            async for event in ask_advisor_stream(
+                session["history"],
+                session["context"]
+            ):
+                yield f"data: {json.dumps(event)}\n\n"
+
+        except Exception as e:
+            logger.exception(
+                f"Session {session_id}: Streaming failed"
+            )
+            yield f"data: {json.dumps({
+                'type': 'error',
+                'message': str(e)
+            })}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
+    )
 
 
 @app.post("/sessions/{session_id}/clear")
