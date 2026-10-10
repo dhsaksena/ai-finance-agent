@@ -1,23 +1,30 @@
-from stock_research.gemini.client import GeminiClient
-from stock_research.research.prompts import STOCK_RESEARCH_PROMPT
+from typing import List, Optional
+
+from stock_research.integrators.base import ResearchIntegrator
+from stock_research.integrators.enriched import EnrichedResearchIntegrator
 
 
 class StockResearcher:
-    """Orchestrates stock research using Gemini AI."""
+    """Orchestrates stock research via one or more integrators."""
 
-    def __init__(self, model: str = "gemini-3.5-flash-lite"):
-        self.client = GeminiClient(model=model)
+    def __init__(self, integrators: Optional[List[ResearchIntegrator]] = None):
+        self.integrators = integrators if integrators is not None else [EnrichedResearchIntegrator()]
 
     def research(self, ticker: str) -> str:
         """
-        Generate a comprehensive research report for a given stock ticker.
+        Generate a research report for a given stock ticker.
+
+        Collects results from all configured integrators and combines them.
 
         Args:
-            ticker: Stock ticker symbol (e.g., 'AAPL')
+            ticker: Stock ticker symbol (e.g., 'RELIANCE')
 
         Returns:
             Markdown-formatted research report
         """
-        prompt = STOCK_RESEARCH_PROMPT.format(ticker=ticker)
-        report = self.client.research(prompt)
-        return report
+        reports = [integrator.research(ticker) for integrator in self.integrators]
+
+        if len(reports) == 1:
+            return reports[0]
+
+        return "\n\n---\n\n".join(reports)

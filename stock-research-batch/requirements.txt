@@ -1,3 +1,5 @@
 apache-airflow
+fastapi>=0.115.0
 google-genai
+mcp
 python-dotenv
