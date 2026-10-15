@@ -8,72 +8,15 @@ from delta.tables import DeltaTable
 from pyspark.sql import functions as F
 from pyspark.sql.types import StringType, StructField, StructType
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s"
-)
+from utils.logging_utils import get_logger
+from integration.nse_data_provider import NSEDataProvider 
 
-logger = logging.getLogger("dim_asset_etl")
+logger = get_logger("dim_asset_etl", "info")
 
 source_table = "finance_assist.brownze.kotak_raw_stocks"
 target_table = "finance_assist.silver.dim_asset"
 
-# --- NSE equity master list (single file download, on the driver) ----------
-NSE_EQUITY_LIST_URLS = [
-    "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
-    "https://archives.nseindia.com/content/equities/EQUITY_L.csv",  # fallback host
-]
-NSE_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-    ),
-    "Accept": "text/csv,*/*;q=0.8",
-    "Referer": "https://www.nseindia.com/",
-}
-NSE_SCHEMA = StructType([
-    StructField("symbol", StringType(), False),
-    StructField("nse_name", StringType(), True),
-])
 
-
-def fetch_nse_names(retries_per_url: int = 2, timeout: int = 30) -> dict:
-    """Returns {SYMBOL: company name} from NSE's EQUITY_L.csv."""
-    last_error = None
-    for url in NSE_EQUITY_LIST_URLS:
-        for attempt in range(retries_per_url):
-            try:
-                resp = requests.get(url, headers=NSE_HEADERS, timeout=timeout)
-                resp.raise_for_status()
-                reader = csv.DictReader(io.StringIO(resp.text))
-                # Some NSE headers have leading spaces (e.g. " SERIES")
-                reader.fieldnames = [f.strip() for f in (reader.fieldnames or [])]
-                return {
-                    row["SYMBOL"].strip().upper(): row["NAME OF COMPANY"].strip()
-                    for row in reader
-                    if row.get("SYMBOL")
-                }
-            except (requests.RequestException, KeyError) as e:
-                last_error = e
-                logger.warning("NSE fetch failed (%s, attempt %d): %s", url, attempt + 1, e)
-                time.sleep(1 + attempt)
-    raise RuntimeError(f"Could not fetch NSE equity master list: {last_error}")
-
-
-def resolve_nse_symbol(symbol: str, master: dict):
-    """
-    Exact match first (so genuinely hyphenated symbols like BAJAJ-AUTO still work),
-    then drop a trailing '-SUFFIX' (EMBASSY-RR -> EMBASSY, MTARTECH-BE -> MTARTECH).
-    Returns the key to look up in master, or None.
-    """
-    if symbol in master:
-        return symbol
-    if "-" in symbol:
-        base = symbol.rsplit("-", 1)[0]
-        if base in master:
-            return base
-    return None
 
 
 start_time = time.time()
@@ -108,7 +51,8 @@ logger.info("Portfolio has %d distinct symbols", len(symbols))
 # If NSE is unreachable, degrade instead of failing: new assets fall back to
 # symbol as asset_name and existing names are left untouched.
 try:
-    nse_master = fetch_nse_names()
+    provider = NSEDataProvider()
+    nse_master = provider.fetch_nse_names()
     logger.info("NSE master list downloaded (%d rows, kept only for lookup)", len(nse_master))
 except RuntimeError:
     logger.exception("NSE fetch failed; proceeding without NSE names")
