@@ -4,6 +4,15 @@ import logging
 import time
 
 import requests
+
+
+import os
+import sys
+
+print("Working directory:", os.getcwd())
+print("Python paths:", sys.path)
+
+
 from delta.tables import DeltaTable
 from pyspark.sql import functions as F
 from pyspark.sql.types import StringType, StructField, StructType
